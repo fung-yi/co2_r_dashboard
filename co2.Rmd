@@ -1,0 +1,252 @@
+---
+title: "CO2 Dashboard by Fung Yi"
+#runtime: shiny
+output:
+  flexdashboard::flex_dashboard:
+    theme: 
+      version: 4
+      bootswatch: minty
+    orientation: rows
+    source_code: embed
+    navbar:
+      - { title: "", href: "https://sites.google.com/view/fungyi/", align: right, icon: fa-house-user}
+      - { title: "", href: "https://www.linkedin.com/in/fungyileung/", align: right, icon: fa-linkedin }
+---
+
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(knitr)
+library(DT)
+library(rpivotTable)
+library(ggplot2)
+library(plotly)
+library(dplyr)
+library(openintro)
+library(highcharter)
+library(ggvis)
+```
+
+```{r}
+# source of data : https://nyc3.digitaloceanspaces.com/owid-public/data/co2/owid-co2-data.csv
+data <- read.csv("owid-co2-data.csv")
+#focus_year <-max(data$year)
+focus_year <-2018
+continent <- c("Asia", "Africa","Europe","North America","South America","Oceania","Antarctica")
+```
+
+```{r}
+mycolors <- c("#354e5c","#75b8d1","#c9d175","#758bd1","#d1ab75","#d175b8")
+```
+
+```{r, include= TRUE}
+htmltools::tagList(fontawesome::fa_html_dependency())
+```
+
+Interactive Data Visualization
+=====================================
+
+
+<!-- Sidebar {.sidebar} -->
+<!-- ------------------------------------- -->
+<!-- ```{r} -->
+<!-- selectInput("dummy", "Choose year", value= choices = 1998:2000) -->
+<!-- ``` -->
+
+Row
+-------------------------------------
+### World Annual <br>CO<sub>2</sub> emissions 
+
+```{r}
+valueBox(paste("Yr ",focus_year),
+         color = "danger",
+         icon="fa-globe")
+```
+
+### Annual production (million tonnes)
+
+```{r}
+x <- data %>% 
+        filter(country == "World")  %>% 
+        filter(year == focus_year) %>% 
+        select(co2)
+        
+valueBox(round(x),
+         icon = "fa-users")
+```
+
+### From Coal <br>(million tonnes)
+
+```{r}
+x <- data %>% 
+        filter(country == "World")  %>% 
+        filter(year == focus_year) %>% 
+        select(coal_co2)
+valueBox(round(x),
+         icon = 'fa-cloud')
+```
+
+
+### From Oil <br> (million tonnes)
+
+```{r}
+x <- data %>% 
+        filter(country == "World")  %>% 
+        filter(year == focus_year) %>% 
+        select(oil_co2)
+valueBox(round(x),
+         icon = 'fa fa-tint')
+```
+
+### From Gas <br> (million tonnes)
+
+```{r}
+x <- data %>% 
+        filter(country == "World")  %>% 
+        filter(year == focus_year) %>% 
+        select(gas_co2)
+valueBox(round(x),
+         icon = 'fa-skyatlas')
+```
+
+
+### From Cement (million tonnes)
+
+```{r}
+x <- data %>% 
+        filter(country == "World")  %>% 
+        filter(year == focus_year) %>% 
+        select(cement_co2)
+valueBox(round(x),
+         icon = 'fa-building')
+```
+
+
+
+### From Flaring (million tonnes)
+
+```{r}
+x <- data %>% 
+        filter(country == "World")  %>% 
+        filter(year == focus_year) %>% 
+        select(flaring_co2)
+valueBox(round(x),
+         icon = 'fa-fire')
+```
+
+Row
+-------------------------------
+### Annual CO<sub>2</sub> Emission By Top 5 countries
+
+```{r}
+
+p1 <- data %>%
+         filter(iso_code!="") %>%
+         filter(year == focus_year)  %>%
+         filter(country !="World")  %>%
+         arrange(desc(co2)) %>%
+         slice(1:5) %>%
+         plot_ly(x = ~country,
+                 y = ~co2,
+                 color = "secondary",
+                 type = 'bar') %>%
+layout(
+yaxis = list( title = '(million tonnes)')
+)
+p1
+```
+
+### Annual CO<sub>2</sub> Distribution by continent
+
+```{r}
+p2 <- data %>%
+         filter(year == focus_year)  %>%
+         filter(country %in% continent)  %>%
+         plot_ly(labels = ~country,
+                 values = ~co2,
+                 marker = list(colors = "info")) %>%
+         add_pie(hole = 0.2) %>%
+         layout(xaxis = list(zeroline = F,
+                             showline = F,
+                             showticklabels = F,
+                             showgrid = F),
+                yaxis = list(zeroline = F,
+                             showline = F,
+                             showticklabels=F,
+                             showgrid=F))
+p2
+
+
+```
+
+### GDP per capita Vs CO<sub>2</sub> percaptia emission
+
+```{r}
+p3 <- data %>%
+         filter(iso_code!="") %>%
+         filter(year == focus_year)  %>%
+         filter(country !="World")  %>%
+         mutate(gdp_per_capita = gdp/population) %>%
+          plot_ly(x = ~gdp_per_capita,
+                 y = ~co2_per_capita,
+                 
+                 type = 'scatter') %>%
+layout(
+yaxis = list( title = '(million tonnes)')
+)
+p3
+```
+
+Map
+========================================
+
+### Annual CO2 Emission per Country
+```{r}
+co2_per_country <- data %>%
+         filter(iso_code!="") %>%
+         filter(year == focus_year)  %>%
+         filter(country !="World") %>%
+         group_by(country)
+
+
+hcmap(
+  map = "custom/world",
+  data = co2_per_country,
+  name = "million tonnes",
+  joinBy =  c("iso-a3", "iso_code"), value = "co2"
+  #joinBy =  c("name", "country"), value = "co2"
+)
+```
+
+Data Table
+========================================
+
+```{r}
+data_focus_year<- data %>%
+         filter(year == focus_year)
+
+datatable(data_focus_year,
+          caption = paste("Data in Year ",focus_year) ,
+          rownames = T,
+          filter = "top",
+          options = list(pageLength = 25))
+```
+
+Pivot Table
+=========================================
+
+```{r}
+data_continent <- data %>%
+        # filter(country %in% continent) %>%
+         filter(year %in% (1980:2020)) %>%
+          select(country, year, co2_per_capita, cement_co2_per_capita, coal_co2_per_capita,oil_co2_per_capita)
+
+
+rpivotTable(data_continent,
+            aggregatorName = "Average",
+            cols= "country",
+            rows ="year" ,
+            vals = "co2_per_capita",
+            rendererName = "Heatmap"
+            )
+```
